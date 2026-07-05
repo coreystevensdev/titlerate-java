@@ -1,0 +1,71 @@
+resource "aws_db_subnet_group" "main" {
+  name       = "${local.name_prefix}-db-subnet"
+  subnet_ids = aws_subnet.private[*].id
+  tags       = { Name = "${local.name_prefix}-db-subnet" }
+}
+
+resource "random_password" "rds_admin" {
+  length           = 32
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}<>:?"
+}
+
+resource "aws_secretsmanager_secret" "rds" {
+  name                    = "${local.name_prefix}/rds"
+  recovery_window_in_days = 7
+  tags                    = { Name = "${local.name_prefix}-rds-secret" }
+}
+
+resource "aws_secretsmanager_secret_version" "rds" {
+  secret_id = aws_secretsmanager_secret.rds.id
+  secret_string = jsonencode({
+    username = var.rds_username
+    password = random_password.rds_admin.result
+    host     = aws_db_instance.main.address
+    port     = 5432
+    dbname   = "titlerate"
+    url      = "postgresql://${var.rds_username}:${random_password.rds_admin.result}@${aws_db_instance.main.address}:5432/titlerate"
+  })
+}
+
+resource "aws_db_parameter_group" "main" {
+  family = "postgres17"
+  name   = "${local.name_prefix}-pg"
+
+  parameter {
+    name  = "log_min_duration_statement"
+    value = "1000"
+  }
+
+  tags = { Name = "${local.name_prefix}-pg" }
+}
+
+resource "aws_db_instance" "main" {
+  identifier = "${local.name_prefix}-db"
+
+  engine               = "postgres"
+  engine_version       = "17.4"
+  instance_class       = var.rds_instance_class
+  allocated_storage    = 20
+  max_allocated_storage = 100
+  storage_type         = "gp3"
+  storage_encrypted    = true
+
+  db_name  = "titlerate"
+  username = var.rds_username
+  password = random_password.rds_admin.result
+
+  db_subnet_group_name   = aws_db_subnet_group.main.name
+  vpc_security_group_ids = [aws_security_group.rds.id]
+  parameter_group_name   = aws_db_parameter_group.main.name
+
+  backup_retention_period   = 7
+  backup_window             = "03:00-04:00"
+  maintenance_window        = "sun:04:00-sun:05:00"
+  deletion_protection       = true
+  skip_final_snapshot       = false
+  final_snapshot_identifier = "${local.name_prefix}-final-snapshot"
+  performance_insights_enabled = true
+
+  tags = { Name = "${local.name_prefix}-db" }
+}

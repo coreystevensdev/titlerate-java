@@ -1,0 +1,88 @@
+name: Deploy to AWS ECS
+
+on:
+  workflow_run:
+    workflows: [CI]
+    branches: [main]
+    types: [completed]
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  deploy:
+    name: Build, Push, Deploy
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set image tag
+        id: tag
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          ECR_REPO: ${{ secrets.ECR_REPO }}
+        run: |
+          SHORT="${HEAD_SHA:0:7}"
+          echo "image=${ECR_REPO}:sha-${SHORT}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: temurin
+          cache: maven
+
+      - name: Build JAR
+        run: ./mvnw package -DskipTests -q
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: |
+            ${{ steps.tag.outputs.image }}
+            ${{ secrets.ECR_REPO }}:latest
+
+      - name: Deploy to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition-family: ${{ secrets.ECS_TASK_FAMILY }}
+          service: ${{ secrets.ECS_SERVICE }}
+          cluster: ${{ secrets.ECS_CLUSTER }}
+          image-uri: ${{ steps.tag.outputs.image }}
+          container-name: api
+          wait-for-service-stability: true
+
+      - name: Smoke test
+        env:
+          ALB_URL: ${{ secrets.ALB_URL }}
+        run: |
+          echo "Checking $ALB_URL/actuator/health..."
+          for i in $(seq 1 18); do
+            body=$(curl -fsS "$ALB_URL/actuator/health" 2>/dev/null || true)
+            if echo "$body" | grep -q '"status":"UP"'; then
+              echo "Healthy after $((i * 10))s"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Service did not become healthy within 3 minutes"
+          exit 1

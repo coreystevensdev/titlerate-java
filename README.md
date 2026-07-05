@@ -44,6 +44,8 @@ Tier boundaries use exclusive upper bounds (JPQL `tierEnd > amount`): the tier w
 | Passwords | BCrypt (Spring Security) | Industry-standard hashing with cost factor |
 | Tests | JUnit 5, MockMvc, `@SpringBootTest` | Integration tests run against real H2 with `data.sql` seed data |
 | DB | PostgreSQL 16 (prod), H2 (test) | H2 in-memory for fast tests; Postgres for prod with the same schema |
+| Infrastructure | AWS ECS Fargate, RDS PostgreSQL 17, ALB | Zero EC2 management; deployment circuit breaker rolls back on health-check failure |
+| IaC | Terraform 1.9, GitHub Actions OIDC | Reproducible infra; CI deploys via short-lived IAM role, no stored AWS credentials |
 
 ## Getting Started
 
