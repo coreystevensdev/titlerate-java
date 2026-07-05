@@ -1,5 +1,7 @@
 # TitleRate (Java)
 
+![CI](https://github.com/coreystevensdev/titlerate-java/actions/workflows/ci.yml/badge.svg)
+
 Title insurance premium calculator for PA and NJ. Spring Boot 3.3, Spring Security stateless JWT, Spring Data JPA, PostgreSQL. 12 tests (JUnit 5 + MockMvc).
 
 ## Problem
