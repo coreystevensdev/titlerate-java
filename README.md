@@ -2,7 +2,7 @@
 
 ![CI](https://github.com/coreystevensdev/titlerate-java/actions/workflows/ci.yml/badge.svg)
 
-Title insurance premium calculator for PA and NJ. Spring Boot 3.3, Spring Security stateless JWT, Spring Data JPA, PostgreSQL. 12 tests (JUnit 5 + MockMvc). No persistent live URL: run locally with `docker compose up` or deploy via Terraform to ECS Fargate (see `infra/`).
+Title insurance premium calculator for PA and NJ. Spring Boot 3.3, Spring Security stateless JWT, Spring Data JPA, PostgreSQL. 14 tests (JUnit 5 + MockMvc). No persistent live URL: run locally with `docker compose up` or deploy via Terraform to ECS Fargate (see `infra/`).
 
 ## Problem
 
@@ -10,20 +10,20 @@ Title insurance premiums follow state-filed tiered rate schedules with different
 
 ## Solution
 
-A REST API with a JPQL tier query that finds the applicable rate schedule row for a given state, policy type, and property value. The premium is computed as `amount / 1000 * rate_per_thousand`, with the simultaneous issue discount applied when both coverages are requested.
+A REST API that walks the full tier list for a given state and policy type, accumulating premium across rate brackets. Each tier covers a property value band; only the amount within that band is rated at the tier's `ratePerThousand`. The final `basePremium` is the sum across all tiers (the same math as tax bracket accumulation). Simultaneous issue discount applies to the accumulated base.
 
 ## Architecture
 
 ```mermaid
 flowchart TD
     A["POST /api/calculate\nJWT Bearer required"] --> B[PremiumCalculationService]
-    B --> C["RateScheduleRepository\nfindApplicableSchedule()"]
-    C --> D["JPQL: tierStart <= amount AND tierEnd > amount\nORDER BY effectiveDate DESC LIMIT 1"]
-    D --> E["base = amount / 1000 * ratePerThousand\ndiscount = base * simultaneousDiscountPct"]
-    E --> F["PremiumResponse\n{basePremium, simultaneousDiscount, netPremium}"]
+    B --> C["RateScheduleRepository\nfindByStateAndPolicyTypeOrderByTierStart()"]
+    C --> D["Walk tiers: amountInTier = min(remaining, tierCapacity)\ntierPremium = amountInTier / 1000 * ratePerThousand"]
+    D --> E["basePremium = sum of tierPremiums\ndiscount = basePremium * simultaneousDiscountPct"]
+    E --> F["PremiumResponse\n{basePremium, simultaneousDiscount, netPremium, breakdown}"]
 ```
 
-Tier boundaries use exclusive upper bounds (JPQL `tierEnd > amount`): the tier whose `tierStart <= amount < tierEnd` applies. An amount exactly at a tier boundary falls into the higher tier.
+Open-ended final tiers (null `tierEnd`) absorb all remaining amount. The `breakdown` field in the response lists each tier's contribution for auditability.
 
 ## Tech Stack
 
@@ -33,7 +33,7 @@ Tier boundaries use exclusive upper bounds (JPQL `tierEnd > amount`): the tier w
 | Auth | Spring Security stateless + JJWT 0.12.6 | `OncePerRequestFilter` validates Bearer tokens; no session state |
 | ORM | Spring Data JPA + Hibernate | JPQL tier query; `schema-create` in H2, `update` in prod |
 | Passwords | BCrypt (Spring Security) | Industry-standard hashing with cost factor |
-| Tests | JUnit 5, MockMvc, `@SpringBootTest` | Integration tests run against real H2 with `data.sql` seed data |
+| Tests | JUnit 5, MockMvc, `@SpringBootTest` | Integration tests hit in-memory H2; `@Sql(test-rates.sql)` seeds each test class with DELETE + INSERT for idempotency |
 | DB | PostgreSQL 16 (prod), H2 (test) | H2 in-memory for fast tests; Postgres for prod with the same schema |
 | Infrastructure | AWS ECS Fargate, RDS PostgreSQL 17, ALB | Zero EC2 management; deployment circuit breaker rolls back on health-check failure |
 | IaC | Terraform 1.9, GitHub Actions OIDC | Reproducible infra; CI deploys via short-lived IAM role, no stored AWS credentials |
@@ -77,10 +77,10 @@ docker compose up
 
 ## Known Limitations
 
-- Single-tier lookup per policy: the JPQL query returns one applicable rate schedule row per request. Multi-tier calculations (walking brackets across a property value) are handled in the .NET version; this API is single-tier by design.
 - Rate schedules are illustrative tiers for PA and NJ. Verify against current state filings before production use.
-- H2 does not support `ON CONFLICT DO NOTHING`; the `data.sql` seed omits that clause. Re-ingesting data on a running prod DB would require idempotent INSERT OR UPDATE logic.
-- No rate schedule update API; changes require a migration or `data.sql` update.
+- H2 does not support `ON CONFLICT DO NOTHING`; the test seed uses DELETE + INSERT for idempotency. Re-ingesting rate schedules on a running prod DB requires idempotent upsert logic.
+- No rate schedule update API; changes require a migration or seed update.
+- Multi-state test coverage is limited: only PA tiers are seeded in the current test fixtures.
 
 ## License
 
