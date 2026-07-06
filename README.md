@@ -14,24 +14,13 @@ A REST API with a JPQL tier query that finds the applicable rate schedule row fo
 
 ## Architecture
 
-```
-POST /api/calculate
-    |
-    v
-[PremiumCalculationService]
-    |
-    v
-[RateScheduleRepository.findApplicableSchedule]
-  JPQL: tierStart <= amount AND (tierEnd IS NULL OR tierEnd > amount)
-  ORDER BY effectiveDate DESC LIMIT 1
-    |
-    v
-base = amount / 1000 * ratePerThousand
-discount = base * simultaneousDiscountPct (if simultaneous issue)
-net = base - discount
-    |
-    v
-PremiumResponse { state, policyType, amount, basePremium, simultaneousDiscount, netPremium }
+```mermaid
+flowchart TD
+    A["POST /api/calculate\nJWT Bearer required"] --> B[PremiumCalculationService]
+    B --> C["RateScheduleRepository\nfindApplicableSchedule()"]
+    C --> D["JPQL: tierStart <= amount AND tierEnd > amount\nORDER BY effectiveDate DESC LIMIT 1"]
+    D --> E["base = amount / 1000 * ratePerThousand\ndiscount = base * simultaneousDiscountPct"]
+    E --> F["PremiumResponse\n{basePremium, simultaneousDiscount, netPremium}"]
 ```
 
 Tier boundaries use exclusive upper bounds (JPQL `tierEnd > amount`): the tier whose `tierStart <= amount < tierEnd` applies. An amount exactly at a tier boundary falls into the higher tier.
