@@ -58,8 +58,7 @@ public class PremiumCalculationService {
             remaining = remaining.subtract(amountInTier);
         }
 
-        // Simultaneous discount uses the first tier's pct — it is uniform across
-        // all tiers for a given state + policy type.
+        // Simultaneous discount pct is uniform across all tiers for a given state + policy type.
         BigDecimal discountPct = tiers.get(0).getSimultaneousDiscountPct();
         BigDecimal discount = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
         if (req.simultaneousIssue() && discountPct.compareTo(BigDecimal.ZERO) > 0) {
@@ -68,7 +67,7 @@ public class PremiumCalculationService {
                 .setScale(2, RoundingMode.HALF_UP);
         }
 
-        BigDecimal net = basePremium.subtract(discount);
+        BigDecimal net = basePremium.subtract(discount).setScale(2, RoundingMode.HALF_UP);
         BigDecimal lastRate = tiers.get(tiers.size() - 1).getRatePerThousand();
 
         return new PremiumResponse(

@@ -41,7 +41,7 @@ public class JwtUtil {
             .compact();
     }
 
-    /** Returns the subject (email) if the token is valid, or null if invalid or expired. */
+    /** Returns null if the token is invalid or expired. */
     public String extractEmail(String token) {
         try {
             Claims claims = Jwts.parser()
