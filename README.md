@@ -1,9 +1,9 @@
 # TitleRate (Java)
 
 ![CI](https://github.com/coreystevensdev/titlerate-java/actions/workflows/ci.yml/badge.svg)
-![14 tests](https://img.shields.io/badge/tests-14-brightgreen)
+![20 tests](https://img.shields.io/badge/tests-20-brightgreen)
 
-Title insurance premium calculator for PA and NJ. Spring Boot 3.3, Spring Security stateless JWT, Spring Data JPA, PostgreSQL. 14 tests (JUnit 5 + MockMvc). No persistent live URL: run locally with `docker compose up` or deploy via Terraform to ECS Fargate (see `infra/`).
+Title insurance premium calculator for PA and NJ. Spring Boot 3.3, Spring Security stateless JWT, Spring Data JPA, PostgreSQL. 20 tests (JUnit 5 + MockMvc). No persistent live URL: run locally with `docker compose up` or deploy via Terraform to ECS Fargate (see `infra/`).
 
 ## Problem
 
@@ -17,7 +17,7 @@ A REST API that walks the full tier list for a given state and policy type, accu
 
 ```mermaid
 flowchart TD
-    A["POST /api/calculate\nJWT Bearer required"] --> B[PremiumCalculationService]
+    A["POST /api/calculate\npublic, no auth required"] --> B[PremiumCalculationService]
     B --> C["RateScheduleRepository\nfindByStateAndPolicyTypeOrderByTierStart()"]
     C --> D["Walk tiers: amountInTier = min(remaining, tierCapacity)\ntierPremium = amountInTier / 1000 * ratePerThousand"]
     D --> E["basePremium = sum of tierPremiums\ndiscount = basePremium * simultaneousDiscountPct"]
@@ -61,6 +61,12 @@ Register and get a JWT:
 curl -X POST http://localhost:8080/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email":"test@example.com","password":"password123"}'
+```
+
+The only endpoint that actually requires the JWT is `GET /api/auth/me`, which resolves the caller's own profile from the token's role claim, never from a request parameter:
+
+```bash
+curl http://localhost:8080/api/auth/me -H "Authorization: Bearer <token>"
 ```
 
 Or with Docker Compose:
