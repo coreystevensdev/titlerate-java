@@ -30,10 +30,11 @@ public class JwtUtil {
         this.expiryHours = expiryHours;
     }
 
-    public String generateToken(String email) {
+    public String generateToken(String email, String role) {
         Instant now = Instant.now();
         return Jwts.builder()
             .subject(email)
+            .claim("role", role)
             .issuer(issuer)
             .issuedAt(Date.from(now))
             .expiration(Date.from(now.plus(expiryHours, ChronoUnit.HOURS)))
@@ -43,13 +44,23 @@ public class JwtUtil {
 
     /** Returns null if the token is invalid or expired. */
     public String extractEmail(String token) {
+        Claims claims = parseClaims(token);
+        return claims == null ? null : claims.getSubject();
+    }
+
+    /** Returns null if the token is invalid, expired, or carries no role claim. */
+    public String extractRole(String token) {
+        Claims claims = parseClaims(token);
+        return claims == null ? null : claims.get("role", String.class);
+    }
+
+    private Claims parseClaims(String token) {
         try {
-            Claims claims = Jwts.parser()
+            return Jwts.parser()
                 .verifyWith(signingKey)
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
-            return claims.getSubject();
         } catch (JwtException | IllegalArgumentException e) {
             return null;
         }

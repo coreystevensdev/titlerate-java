@@ -2,13 +2,16 @@ package dev.coreystevens.titlerate.controller;
 
 import dev.coreystevens.titlerate.dto.AuthRequest;
 import dev.coreystevens.titlerate.dto.TokenResponse;
+import dev.coreystevens.titlerate.dto.UserProfileResponse;
 import dev.coreystevens.titlerate.model.AppUser;
 import dev.coreystevens.titlerate.repository.AppUserRepository;
 import dev.coreystevens.titlerate.security.JwtUtil;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -36,7 +39,7 @@ public class AuthController {
         }
         AppUser user = new AppUser(req.email(), passwordEncoder.encode(req.password()));
         users.save(user);
-        String token = jwtUtil.generateToken(user.getEmail());
+        String token = jwtUtil.generateToken(user.getEmail(), user.getRole());
         return ResponseEntity.status(HttpStatus.CREATED).body(new TokenResponse(token, user.getEmail()));
     }
 
@@ -47,7 +50,15 @@ public class AuthController {
         if (!passwordEncoder.matches(req.password(), user.getPasswordHash())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
         }
-        String token = jwtUtil.generateToken(user.getEmail());
+        String token = jwtUtil.generateToken(user.getEmail(), user.getRole());
         return ResponseEntity.ok(new TokenResponse(token, user.getEmail()));
+    }
+
+    /** Returns the caller's own profile, resolved from the authenticated principal, never from a caller-supplied id. */
+    @GetMapping("/me")
+    public ResponseEntity<UserProfileResponse> me(Authentication authentication) {
+        AppUser user = users.findByEmail(authentication.getName())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unknown user"));
+        return ResponseEntity.ok(new UserProfileResponse(user.getEmail(), user.getRole(), user.getCreatedAt()));
     }
 }
