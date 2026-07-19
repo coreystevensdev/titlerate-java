@@ -1,9 +1,9 @@
 # TitleRate (Java)
 
 ![CI](https://github.com/coreystevensdev/titlerate-java/actions/workflows/ci.yml/badge.svg)
-![20 tests](https://img.shields.io/badge/tests-20-brightgreen)
+![21 tests](https://img.shields.io/badge/tests-21-brightgreen)
 
-Title insurance premium calculator for PA and NJ. Spring Boot 3.3, Spring Security stateless JWT, Spring Data JPA, PostgreSQL. 20 tests (JUnit 5 + MockMvc). No persistent live URL: run locally with `docker compose up` or deploy via Terraform to ECS Fargate (see `infra/`).
+Title insurance premium calculator for PA and NJ. Spring Boot 3.3, Spring Security stateless JWT, Spring Data JPA, PostgreSQL. 21 tests (JUnit 5 + MockMvc). No persistent live URL: run locally with `docker compose up` or deploy via Terraform to ECS Fargate (see `infra/`).
 
 ## Problem
 

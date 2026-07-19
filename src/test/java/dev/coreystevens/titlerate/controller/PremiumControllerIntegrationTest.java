@@ -67,4 +67,18 @@ class PremiumControllerIntegrationTest {
                 .content(body))
             .andExpect(status().isBadRequest());
     }
+
+    @Test
+    @WithMockUser
+    void calculate_unconfiguredStatePolicy_returns404NotRawServerError() throws Exception {
+        // NJ passes the @Pattern(state) check, but test-rates.sql only seeds PA tiers.
+        var req = new PremiumRequest("NJ", PolicyType.OWNER, new BigDecimal("50000"), false);
+
+        mvc.perform(post("/api/calculate")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(req)))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.message").value(
+                "No rate schedule found for state=NJ policyType=OWNER amount=50000"));
+    }
 }
