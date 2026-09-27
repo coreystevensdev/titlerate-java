@@ -4,6 +4,8 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -16,18 +18,30 @@ import java.util.Date;
 @Component
 public class JwtUtil {
 
+    private static final Logger log = LoggerFactory.getLogger(JwtUtil.class);
+
     private final SecretKey signingKey;
     private final String issuer;
     private final long expiryHours;
 
     public JwtUtil(
-        @Value("${jwt.secret}") String secret,
+        @Value("${jwt.secret:}") String secret,
         @Value("${jwt.issuer:titlerate-api}") String issuer,
         @Value("${jwt.expiration-hours:24}") long expiryHours
     ) {
-        this.signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        this.signingKey = secret.isBlank()
+            ? ephemeralKey()
+            : Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.issuer = issuer;
         this.expiryHours = expiryHours;
+    }
+
+    // Shipping a fallback secret would put a working signing key in the repo, so an unset
+    // JWT_SECRET gets a fresh random one. Tokens stop working across a restart, which is
+    // the point: it is loud in dev and impossible to mistake for a configured deploy.
+    private static SecretKey ephemeralKey() {
+        log.warn("JWT_SECRET is not set; signing with an ephemeral key that dies with this process");
+        return Jwts.SIG.HS256.key().build();
     }
 
     public String generateToken(String email, String role) {
