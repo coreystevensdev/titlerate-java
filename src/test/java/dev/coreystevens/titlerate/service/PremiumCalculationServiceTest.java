@@ -139,6 +139,32 @@ class PremiumCalculationServiceTest {
 
         assertThat(resp.basePremium()).isEqualByComparingTo("200.00");
         assertThat(resp.breakdown().get(0).amountInTier()).isEqualByComparingTo("50000");
+        assertThat(resp.breakdown()).hasSize(1);
+        assertThat(resp.ratePerThousandApplied()).isEqualByComparingTo("4.00");
+    }
+
+    // The reported rate has to come from the tier the amount reached, not the top bracket on file.
+    @Test
+    void ratePerThousandApplied_isTheTierTheAmountReached() {
+        when(rateRepo.findByStateAndPolicyTypeOrderByTierStart(eq("PA"), eq(PolicyType.OWNER)))
+            .thenReturn(List.of(
+                tier("PA", PolicyType.OWNER,
+                    BigDecimal.ZERO, new BigDecimal("100000"),
+                    new BigDecimal("3.50"), BigDecimal.ZERO),
+                tier("PA", PolicyType.OWNER,
+                    new BigDecimal("100000"), new BigDecimal("1000000"),
+                    new BigDecimal("3.00"), BigDecimal.ZERO),
+                tier("PA", PolicyType.OWNER,
+                    new BigDecimal("1000000"), null,
+                    new BigDecimal("2.50"), BigDecimal.ZERO)));
+
+        PremiumResponse midTier = service.calculate(
+            new PremiumRequest("PA", PolicyType.OWNER, new BigDecimal("350000"), false));
+        assertThat(midTier.ratePerThousandApplied()).isEqualByComparingTo("3.00");
+
+        PremiumResponse topTier = service.calculate(
+            new PremiumRequest("PA", PolicyType.OWNER, new BigDecimal("2000000"), false));
+        assertThat(topTier.ratePerThousandApplied()).isEqualByComparingTo("2.50");
     }
 
     @Test

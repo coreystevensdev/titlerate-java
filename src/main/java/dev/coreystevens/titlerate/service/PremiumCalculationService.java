@@ -68,10 +68,13 @@ public class PremiumCalculationService {
         }
 
         BigDecimal net = basePremium.subtract(discount).setScale(2, RoundingMode.HALF_UP);
-        BigDecimal lastRate = tiers.get(tiers.size() - 1).getRatePerThousand();
+
+        // The rate that applied is the last tier the amount actually reached. Reading the last
+        // tier on file instead reports the top bracket's rate for every amount.
+        BigDecimal marginalRate = breakdown.get(breakdown.size() - 1).ratePerThousand();
 
         return new PremiumResponse(
             req.state(), req.policyType(), req.amount(),
-            basePremium, discount, net, lastRate, breakdown);
+            basePremium, discount, net, marginalRate, breakdown);
     }
 }
