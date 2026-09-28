@@ -3,10 +3,13 @@ package dev.coreystevens.titlerate.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.coreystevens.titlerate.dto.PremiumRequest;
 import dev.coreystevens.titlerate.model.PolicyType;
+import dev.coreystevens.titlerate.support.PostgresTestcontainer;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.jdbc.Sql;
@@ -18,6 +21,8 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+@ActiveProfiles("test")
+@Import(PostgresTestcontainer.class)
 @SpringBootTest
 @AutoConfigureMockMvc
 @Sql(scripts = "/test-rates.sql")

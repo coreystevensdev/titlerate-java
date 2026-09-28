@@ -15,6 +15,10 @@
 	<description>Title insurance premium calculator API (Spring Boot 3, Java 21)</description>
 
 	<properties>
+		<!-- Spring Boot 3.3 manages 1.19.8, whose bundled docker-java 3.3.6 gets a
+		     400 from Docker 29's /info endpoint, so no container can start. 1.21.4
+		     ships docker-java 3.4.x, which negotiates with it. -->
+		<testcontainers.version>1.21.4</testcontainers.version>
 		<java.version>19</java.version>
 		<jjwt.version>0.12.6</jjwt.version>
 	</properties>
@@ -66,9 +70,12 @@
 
 		<!-- H2 for local dev and tests -->
 		<dependency>
-			<groupId>com.h2database</groupId>
-			<artifactId>h2</artifactId>
-			<scope>runtime</scope>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-core</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-database-postgresql</artifactId>
 		</dependency>
 
 		<!-- PostgreSQL for production -->
@@ -86,6 +93,21 @@
 		<dependency>
 			<groupId>org.springframework.security</groupId>
 			<artifactId>spring-security-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-testcontainers</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>postgresql</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>junit-jupiter</artifactId>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
