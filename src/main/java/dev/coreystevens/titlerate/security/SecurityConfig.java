@@ -26,7 +26,15 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/actuator/health", "/api/auth/register", "/api/auth/login", "/api/rates", "/api/calculate").permitAll()
+                // /error has to be here. A 400 or 404 from a permitAll endpoint is
+                // re-dispatched through this filter chain as an ERROR request, and
+                // without it anyRequest().authenticated() answers 403 instead, so an
+                // anonymous client sees Forbidden for a validation failure. The
+                // existing tests miss it twice over: they carry @WithMockUser, and
+                // MockMvc resolves handler exceptions without dispatching to /error.
+                //
+                // /api/rates was listed here with no controller behind it.
+                .requestMatchers("/error", "/actuator/health", "/api/auth/register", "/api/auth/login", "/api/calculate").permitAll()
                 .requestMatchers("/api/auth/me").hasRole("USER")
                 .anyRequest().authenticated()
             )

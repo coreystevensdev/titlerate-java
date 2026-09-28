@@ -1,4 +1,4 @@
-name: Deploy to AWS ECS
+name: Deploy to AWS EC2
 
 on:
   workflow_dispatch:
@@ -9,77 +9,127 @@ permissions:
 
 env:
   AWS_REGION: us-east-1
+  INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID }}
 
 jobs:
   deploy:
-    name: Build, Push, Deploy
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ github.sha }}
 
-      - name: Configure AWS credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Log in to Amazon ECR
-        uses: aws-actions/amazon-ecr-login@v2
+      - uses: aws-actions/amazon-ecr-login@v2
 
       - name: Set image tag
         id: tag
         env:
-          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_SHA: ${{ github.sha }}
           ECR_REPO: ${{ secrets.ECR_REPO }}
-        run: |
-          SHORT="${HEAD_SHA:0:7}"
-          echo "image=${ECR_REPO}:sha-${SHORT}" >> "$GITHUB_OUTPUT"
+        run: echo "image=${ECR_REPO}:sha-${HEAD_SHA:0:7}" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/setup-java@v4
-        with:
-          java-version: "21"
-          distribution: temurin
-          cache: maven
-
-      - name: Build JAR
-        run: ./mvnw package -DskipTests -q
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: Dockerfile
-          push: true
-          tags: |
-            ${{ steps.tag.outputs.image }}
-            ${{ secrets.ECR_REPO }}:latest
-
-      - name: Deploy to ECS
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
-        with:
-          task-definition-family: ${{ secrets.ECS_TASK_FAMILY }}
-          service: ${{ secrets.ECS_SERVICE }}
-          cluster: ${{ secrets.ECS_CLUSTER }}
-          image-uri: ${{ steps.tag.outputs.image }}
-          container-name: api
-          wait-for-service-stability: true
-
-      - name: Smoke test
+      # The Dockerfile is multi-stage and builds the jar itself, so there is no
+      # separate Maven step to keep in sync with it.
+      - name: Build and push image
         env:
-          ALB_URL: ${{ secrets.ALB_URL }}
+          IMAGE: ${{ steps.tag.outputs.image }}
         run: |
-          echo "Checking $ALB_URL/actuator/health..."
-          for i in $(seq 1 18); do
-            body=$(curl -fsS "$ALB_URL/actuator/health" 2>/dev/null || true)
-            if echo "$body" | grep -q '"status":"UP"'; then
-              echo "Healthy after $((i * 10))s"
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+
+      # The service listens on 127.0.0.1 only, so the health check has to run on
+      # the instance. Deploy and verify are one script: it exits non-zero if the
+      # container never reports UP, and this job fails with it.
+      - name: Deploy and verify on the instance
+        env:
+          IMAGE: ${{ steps.tag.outputs.image }}
+        run: |
+          cat > deploy-remote.sh <<'SCRIPT'
+          #!/bin/bash
+          set -euo pipefail
+          IMAGE="$1"
+          REGION=us-east-1
+          REGISTRY=401716295306.dkr.ecr.us-east-1.amazonaws.com
+
+          # Secrets are read here rather than passed in, so they never appear in the
+          # SSM command string, the workflow log, or CloudTrail.
+          p() { aws ssm get-parameter --name "$1" --with-decryption --region "$REGION" \
+                  --query Parameter.Value --output text; }
+          JWT_SECRET=$(p /titlerate/jwt-secret)
+          DATABASE_URL=$(p /titlerate/database-url)
+          DB_USER=$(p /titlerate/db-user)
+          DB_PASSWORD=$(p /titlerate/db-password)
+
+          aws ecr get-login-password --region "$REGION" \
+            | docker login --username AWS --password-stdin "$REGISTRY"
+          docker pull "$IMAGE"
+
+          docker stop titlerate 2>/dev/null || true
+          docker rm titlerate 2>/dev/null || true
+
+          # 8081 on loopback: 8080 belongs to bondcalc on this box, and nothing
+          # should reach this except a reverse proxy on the same host.
+          #
+          # The memory ceiling is what keeps a JVM from starving the Go service
+          # next to it on a 916MB instance. MaxRAMPercentage is read from the
+          # cgroup limit, not the host, so 50% of 448m is a ~224m heap.
+          # SerialGC because G1's region metadata and concurrent threads are not
+          # worth their footprint at this heap size.
+          docker run -d \
+            --name titlerate \
+            --restart=always \
+            -p 127.0.0.1:8081:8080 \
+            --memory=448m \
+            --memory-swap=1g \
+            -e "DATABASE_URL=$DATABASE_URL" \
+            -e "DB_DRIVER=org.postgresql.Driver" \
+            -e "DB_USER=$DB_USER" \
+            -e "DB_PASSWORD=$DB_PASSWORD" \
+            -e "JWT_SECRET=$JWT_SECRET" \
+            -e "JWT_EXPIRATION_HOURS=24" \
+            -e "JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=50 -XX:+UseSerialGC -XX:MaxMetaspaceSize=128m" \
+            "$IMAGE"
+
+          for i in $(seq 1 24); do
+            if curl -fsS http://127.0.0.1:8081/actuator/health 2>/dev/null | grep -q '"status":"UP"'; then
+              echo "UP after $((i * 5))s"
               exit 0
             fi
+            sleep 5
+          done
+          echo "never reported UP within 120s; last 50 log lines:"
+          docker logs --tail 50 titlerate
+          exit 1
+          SCRIPT
+
+          B64=$(base64 -w0 deploy-remote.sh)
+          CMD=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "deploy titlerate-java $IMAGE" \
+            --parameters "commands=[\"echo $B64 | base64 -d > /tmp/deploy-titlerate.sh\",\"sudo bash /tmp/deploy-titlerate.sh $IMAGE\"]" \
+            --query Command.CommandId --output text)
+          echo "SSM command: $CMD"
+
+          for i in $(seq 1 40); do
+            STATUS=$(aws ssm get-command-invocation --command-id "$CMD" \
+              --instance-id "$INSTANCE_ID" --query Status --output text 2>/dev/null || echo Pending)
+            case "$STATUS" in
+              Success) break ;;
+              Failed|Cancelled|TimedOut) break ;;
+            esac
             sleep 10
           done
-          echo "Service did not become healthy within 3 minutes"
-          exit 1
+
+          aws ssm get-command-invocation --command-id "$CMD" --instance-id "$INSTANCE_ID" \
+            --query StandardOutputContent --output text
+          aws ssm get-command-invocation --command-id "$CMD" --instance-id "$INSTANCE_ID" \
+            --query StandardErrorContent --output text >&2
+
+          [ "$STATUS" = "Success" ] || { echo "deploy failed with status $STATUS"; exit 1; }
