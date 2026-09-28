@@ -1,4 +1,8 @@
--- PA and NJ rate schedules (illustrative tiers; verify against current state filings before production use)
+-- Illustrative tiers. Verify against current state filings before treating any
+-- quote from this service as authoritative.
+--
+-- Was data.sql, which Spring re-ran on every boot alongside ddl-auto=create-drop.
+-- As a migration it runs once and survives a restart.
 INSERT INTO rate_schedules (state, policy_type, tier_start, tier_end, rate_per_thousand, simultaneous_discount_pct, effective_date)
 VALUES
   ('PA', 'OWNER',  0,        100000,   3.50, 0.00, '2024-01-01'),

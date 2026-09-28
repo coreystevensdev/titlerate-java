@@ -11,21 +11,8 @@ jobs:
     name: Build and Test
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_USER: app_admin
-          POSTGRES_PASSWORD: app
-          POSTGRES_DB: titlerate_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 5
-
+    # No postgres service here on purpose. The tests start their own via
+    # Testcontainers, so a second one would sit idle while looking load-bearing.
     steps:
       - uses: actions/checkout@v5
 
@@ -37,11 +24,6 @@ jobs:
 
       - name: Run tests
         run: ./mvnw verify -q
-        env:
-          DATABASE_URL: jdbc:postgresql://localhost:5432/titlerate_test
-          DB_DRIVER: org.postgresql.Driver
-          DB_USER: app_admin
-          DB_PASSWORD: app
 
       - name: Upload test report
         if: always()
@@ -62,13 +44,55 @@ jobs:
       - name: Build Docker image
         run: docker build -f Dockerfile -t titlerate-java:smoke .
 
-      - name: Verify image starts
+      # Was pointed at jdbc:h2:mem with the H2 driver, which is no longer a
+      # dependency, and then only ran `docker logs` with nothing asserted after it,
+      # so the step passed whether or not the app had started. It starts against a
+      # real Postgres now and the job fails unless the app reports UP.
+      - name: Verify the image boots and reports healthy
         run: |
-          docker run -d --name smoke \
-            -e DATABASE_URL=jdbc:h2:mem:testdb \
-            -e DB_DRIVER=org.h2.Driver \
-            -p 8080:8080 \
+          docker network create smoke-net
+          docker run -d --name smoke-db --network smoke-net \
+            -e POSTGRES_USER=titlerate \
+            -e POSTGRES_PASSWORD=titlerate \
+            -e POSTGRES_DB=titlerate \
+            postgres:16-alpine
+          for i in $(seq 1 20); do
+            docker exec smoke-db pg_isready -U titlerate && break
+            sleep 2
+          done
+
+          docker run -d --name smoke --network smoke-net -p 8080:8080 \
+            -e DATABASE_URL=jdbc:postgresql://smoke-db:5432/titlerate \
+            -e DB_DRIVER=org.postgresql.Driver \
+            -e DB_USER=titlerate \
+            -e DB_PASSWORD=titlerate \
+            -e JWT_SECRET=ci-smoke-signing-key-at-least-32-chars \
             titlerate-java:smoke
-          sleep 10
-          docker logs smoke
-          docker rm -f smoke
+
+          ok=0
+          for i in $(seq 1 24); do
+            if curl -fsS http://localhost:8080/actuator/health | grep -q '"status":"UP"'; then
+              echo "healthy after $((i * 5))s"
+              ok=1
+              break
+            fi
+            sleep 5
+          done
+
+          if [ "$ok" != 1 ]; then
+            echo "never reported UP"
+            docker logs smoke
+            exit 1
+          fi
+
+          # Flyway ran and the seed landed, so the calculator answers rather than
+          # just the health endpoint.
+          curl -fsS -X POST http://localhost:8080/api/calculate \
+            -H 'Content-Type: application/json' \
+            -d '{"state":"PA","policyType":"OWNER","amount":50000,"simultaneousIssue":false}' \
+            | grep -q '"basePremium"' || { echo "calculate did not answer"; docker logs smoke; exit 1; }
+          echo "calculate answered"
+
+      - name: Clean up
+        if: always()
+        run: docker rm -f smoke smoke-db || true
