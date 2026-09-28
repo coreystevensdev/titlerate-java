@@ -1,8 +1,11 @@
 package dev.coreystevens.titlerate.controller;
 
+import dev.coreystevens.titlerate.support.PostgresTestcontainer;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -23,6 +26,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * endpoint can answer 400 in the suite and 403 to a real anonymous client, which is
  * what it was doing.
  */
+@ActiveProfiles("test")
+@Import(PostgresTestcontainer.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Sql(scripts = "/test-rates.sql")
 class AnonymousErrorResponseTest {
