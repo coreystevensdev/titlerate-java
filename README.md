@@ -1,9 +1,9 @@
 # TitleRate (Java)
 
 ![CI](https://github.com/coreystevensdev/titlerate-java/actions/workflows/ci.yml/badge.svg)
-![31 tests](https://img.shields.io/badge/tests-31-brightgreen)
+![35 tests](https://img.shields.io/badge/tests-35-brightgreen)
 
-Title insurance premium calculator for PA and NJ. Spring Boot 3.3, Spring Security stateless JWT, Spring Data JPA, PostgreSQL. 31 tests (JUnit 5, MockMvc, a real embedded server for the responses an anonymous caller gets, and Testcontainers Postgres throughout). No persistent live URL: run locally with `docker compose up` or deploy via Terraform to ECS Fargate (see `infra/`).
+Title insurance premium calculator for PA and NJ. Spring Boot 3.3, Spring Security stateless JWT, Spring Data JPA, PostgreSQL. 35 tests (JUnit 5, MockMvc, a real embedded server for the responses an anonymous caller gets, and Testcontainers Postgres throughout). No persistent live URL: run locally with `docker compose up` or deploy via Terraform to ECS Fargate (see `infra/`).
 
 ## Problem
 
@@ -87,6 +87,8 @@ docker compose up
 - Rate schedules are illustrative tiers for PA and NJ. Verify against current state filings before production use.
 - `ddl-auto=validate` is a structural check, not a type check. Measured: a renamed table or column fails the boot, but changing a column from `timestamp with time zone` to `timestamp` does not, so a type drifting from its entity will not be caught.
 - No rate schedule update API; changes require a migration or seed update.
+- The auth rate limiter keeps its windows in process. Two replicas therefore allow twice the configured ceiling, and a restart forgets every window. Moving it to Redis would fix both and add a runtime dependency this service does not currently have.
+- The limiter keys on the remote address, so callers sharing one NAT or corporate gateway share a bucket. `server.forward-headers-strategy=NATIVE` means Tomcat rewrites that address from `X-Forwarded-For`, but only when the immediate peer is in its `internalProxies` set, so the header cannot be spoofed from outside.
 - Multi-state test coverage is limited: only PA tiers are seeded in the current test fixtures.
 
 ## License
