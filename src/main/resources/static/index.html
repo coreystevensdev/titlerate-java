@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TitleRate</title>
+<meta name="description" content="Title insurance premium quotes for PA and NJ, from the state-filed tiered rate schedules.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='2' y='2' width='12' height='12' rx='1' fill='%23E7EBF0' stroke='%2316202E'/%3E%3Cpath d='M4 6h8M4 9h8M4 12h5' stroke='%2351348A'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Public+Sans:wght@300;400;500;600&display=swap">
+<style>
+  /* Survey blue-grey and navy, after the plats and abstracts this work runs on.
+     The violet is a recorder's stamp and marks exactly one thing: what you owe. */
+  :root {
+    --ground:   #E7EBF0;
+    --card:     #F3F6F9;
+    --field:    #FBFCFD;
+    --ink:      #16202E;
+    --ink-soft: #46556A;
+    --ink-faint:#5A6778;  /* 4.81 on --ground; #6E7C8F was 3.55 and failed AA at 12.5px */
+    --rule:     #BCC6D2;
+    --rule-soft:#D4DCE5;
+    --stamp:    #51348A;
+    --stamp-bg: #E6E0F2;
+    --focus:    #1F5FA8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:   #10151D;
+      --card:     #171E29;
+      --field:    #0C1118;
+      --ink:      #DEE5EE;
+      --ink-soft: #A3B0C2;
+      --ink-faint:#7B8798;
+      --rule:     #2B3645;
+      --rule-soft:#222C38;
+      --stamp:    #B9A2E8;
+      --stamp-bg: #241B3B;
+      --focus:    #6FA8E0;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  /* display:contents on the discount row is needed to keep it in the grid, and
+     it outranks the hidden attribute, which is only a UA display:none. */
+  [hidden] { display: none !important; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "Public Sans", system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .sheet { max-width: 880px; margin: 0 auto; padding: 44px 22px 70px; }
+
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 16px; }
+  h1 {
+    font-family: "Instrument Serif", Georgia, serif;
+    font-size: clamp(38px, 7vw, 62px);
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    line-height: 1;
+    margin: 0;
+  }
+  .lede {
+    margin: 12px 0 0;
+    font-size: clamp(16px, 2vw, 19px);
+    font-weight: 300;
+    color: var(--ink-soft);
+    max-width: 56ch;
+  }
+
+  form {
+    display: flex; flex-wrap: wrap; gap: 16px 20px; align-items: flex-end;
+    margin: 26px 0 0; padding: 20px 22px;
+    background: var(--card); border: 1px solid var(--rule);
+  }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { font-size: 13.5px; color: var(--ink-soft); }
+  .grow { flex: 1 1 170px; }
+
+  input[type="number"], select {
+    font: inherit;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    background: var(--field);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    padding: 8px 10px;
+    width: 100%;
+  }
+  input:focus-visible, select:focus-visible, button:focus-visible, .check:focus-within {
+    outline: 2px solid var(--focus); outline-offset: 1px;
+  }
+
+  .check { display: flex; align-items: center; gap: 8px; font-size: 14.5px; color: var(--ink-soft); padding-bottom: 9px; }
+  .check input { accent-color: var(--stamp); width: 16px; height: 16px; }
+
+  button {
+    font: inherit; font-weight: 500;
+    color: var(--field); background: var(--ink);
+    border: 1px solid var(--ink); border-radius: 2px;
+    padding: 9px 20px; cursor: pointer;
+  }
+  button:hover { background: var(--ink-soft); border-color: var(--ink-soft); }
+  button[disabled] { opacity: .5; cursor: progress; }
+
+  /* the quote */
+  .quote { margin-top: 28px; }
+  .net {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 18px;
+    padding-bottom: 14px; border-bottom: 1px solid var(--rule);
+  }
+  .net-figure {
+    font-family: "Instrument Serif", Georgia, serif;
+    font-size: clamp(42px, 9vw, 68px);
+    line-height: 1;
+    color: var(--stamp);
+  }
+  .net-label { font-size: 14.5px; color: var(--ink-soft); }
+  .net-sub { font-size: 14.5px; color: var(--ink-faint); margin: 10px 0 0; }
+
+  /* The ladder is the product: a premium accrues across filed brackets the way
+     income tax does, and the bar widths are the amount falling through each. */
+  .ladder { margin-top: 22px; display: flex; flex-direction: column; gap: 0; }
+  .tier {
+    display: grid;
+    grid-template-columns: minmax(118px, 1.1fr) minmax(0, 2.4fr) minmax(74px, auto);
+    gap: 14px; align-items: center;
+    padding: 11px 0; border-bottom: 1px solid var(--rule-soft);
+  }
+  .tier:first-child { border-top: 1px solid var(--rule-soft); }
+  .tier-band { font-size: 14px; color: var(--ink-soft); }
+  .tier-rate { font-size: 12.5px; color: var(--ink-faint); display: block; }
+  .bar-track { background: var(--rule-soft); height: 22px; position: relative; }
+  .bar-fill { background: var(--stamp-bg); border-left: 3px solid var(--stamp); height: 100%; }
+  .tier-amount { text-align: right; font-size: 14.5px; }
+
+  .totals { margin-top: 18px; display: grid; grid-template-columns: 1fr auto; gap: 8px 16px; font-size: 15px; }
+  .totals dt { color: var(--ink-soft); }
+  .totals dd { margin: 0; text-align: right; }
+  .totals .discount dd { color: var(--stamp); }
+
+  .at-rest { color: var(--ink-faint); font-size: 15px; margin: 22px 0 0; }
+  .err {
+    margin: 22px 0 0; padding: 12px 14px;
+    background: var(--card); border-left: 3px solid var(--stamp);
+    font-size: 15px; color: var(--ink-soft);
+  }
+
+  footer {
+    margin-top: 42px; padding-top: 18px; border-top: 1px solid var(--rule);
+    font-size: 13.5px; color: var(--ink-faint);
+    display: flex; flex-wrap: wrap; gap: 8px 22px; justify-content: space-between;
+  }
+  footer a { color: var(--ink-soft); text-underline-offset: 3px; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9em; }
+
+  @media (max-width: 620px) {
+    .tier { grid-template-columns: 1fr auto; }
+    .bar-track { grid-column: 1 / -1; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<main class="sheet">
+
+  <header>
+    <h1>TitleRate</h1>
+    <p class="lede">What a title insurance policy costs in Pennsylvania or New Jersey, read straight off the rate schedule each state has on file.</p>
+  </header>
+
+  <form id="quote">
+    <div class="field grow">
+      <label for="state">State</label>
+      <select id="state" name="state">
+        <option value="PA" selected>Pennsylvania</option>
+        <option value="NJ">New Jersey</option>
+      </select>
+    </div>
+
+    <div class="field grow">
+      <label for="policyType">Policy</label>
+      <select id="policyType" name="policyType">
+        <option value="OWNER" selected>Owner</option>
+        <option value="LENDER">Lender</option>
+      </select>
+    </div>
+
+    <div class="field grow">
+      <label for="amount">Property amount</label>
+      <input type="number" id="amount" name="amount" value="350000" min="1" step="any" required>
+    </div>
+
+    <label class="check" for="simultaneousIssue">
+      <input type="checkbox" id="simultaneousIssue" name="simultaneousIssue">
+      Issued alongside the other policy
+    </label>
+
+    <button type="submit" id="go">Quote it</button>
+  </form>
+
+  <section class="quote" aria-live="polite">
+    <p class="at-rest" id="at-rest">A premium accrues across brackets, the way income tax does. Quote one and the bands below show which parts of the amount landed where.</p>
+    <div id="result" hidden>
+      <div class="net">
+        <span class="net-figure" id="netPremium">&mdash;</span>
+        <span class="net-label" id="net-label">net premium</span>
+      </div>
+      <p class="net-sub" id="rate-note"></p>
+      <div class="ladder" id="breakdown"></div>
+      <dl class="totals">
+        <dt>Base premium</dt><dd id="basePremium">&mdash;</dd>
+        <div style="display:contents" class="discount" id="discount-row" hidden>
+          <dt>Simultaneous issue discount</dt><dd id="simultaneousDiscount">&mdash;</dd>
+        </div>
+      </dl>
+    </div>
+    <p class="err" id="err" hidden></p>
+  </section>
+
+  <footer>
+    <span>Spring Boot on EC2. <code>POST /api/calculate</code> answers this with no token.</span>
+    <a href="https://github.com/coreystevensdev/titlerate-java">Source</a>
+  </footer>
+
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var form = document.getElementById("quote");
+  var btn = document.getElementById("go");
+  var atRest = document.getElementById("at-rest");
+  var result = document.getElementById("result");
+  var errEl = document.getElementById("err");
+
+  function el(id) { return document.getElementById(id); }
+  function usd(n) {
+    return Number(n).toLocaleString(undefined, { style: "currency", currency: "USD" });
+  }
+  function band(t) {
+    // The top bracket in a filed schedule has no ceiling, so it reads as "and up"
+    // rather than inventing a number the schedule does not state.
+    var start = usd(t.tierStart);
+    return t.tierEnd === null || t.tierEnd === undefined
+      ? start + " and up"
+      : start + " to " + usd(t.tierEnd);
+  }
+
+  function drawLadder(rows) {
+    var host = el("breakdown");
+    host.textContent = "";
+    var widest = rows.reduce(function (m, t) { return Math.max(m, t.amountInTier); }, 0) || 1;
+    rows.forEach(function (t) {
+      var row = document.createElement("div");
+      row.className = "tier";
+
+      var left = document.createElement("div");
+      left.className = "tier-band";
+      left.textContent = band(t);
+      var rate = document.createElement("span");
+      rate.className = "tier-rate";
+      rate.textContent = "$" + Number(t.ratePerThousand).toFixed(2)
+        + " per thousand on " + usd(t.amountInTier);
+      left.appendChild(rate);
+
+      var track = document.createElement("div");
+      track.className = "bar-track";
+      var fill = document.createElement("div");
+      fill.className = "bar-fill";
+      fill.style.width = Math.max(2, (t.amountInTier / widest) * 100) + "%";
+      fill.title = usd(t.amountInTier) + " of the amount fell in this band";
+      track.appendChild(fill);
+
+      var amt = document.createElement("div");
+      amt.className = "tier-amount";
+      amt.textContent = usd(t.premium);
+
+      row.appendChild(left);
+      row.appendChild(track);
+      row.appendChild(amt);
+      host.appendChild(row);
+    });
+  }
+
+  function show(d) {
+    errEl.hidden = true;
+    atRest.hidden = true;
+    result.hidden = false;
+
+    el("netPremium").textContent = usd(d.netPremium);
+    el("basePremium").textContent = usd(d.basePremium);
+    el("rate-note").textContent =
+      "Reached the $" + Number(d.ratePerThousandApplied).toFixed(2) +
+      " per thousand band. " + d.breakdown.length +
+      (d.breakdown.length === 1 ? " band applied." : " bands applied.");
+
+    var hasDiscount = Number(d.simultaneousDiscount) > 0;
+    el("discount-row").hidden = !hasDiscount;
+    if (hasDiscount) el("simultaneousDiscount").textContent = "−" + usd(d.simultaneousDiscount);
+
+    drawLadder(d.breakdown);
+  }
+
+  function fail(msg) {
+    result.hidden = true;
+    atRest.hidden = true;
+    errEl.hidden = false;
+    errEl.textContent = msg;
+  }
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var amount = Number(el("amount").value);
+    if (!isFinite(amount) || amount < 1) { fail("Enter a property amount of at least $1."); return; }
+
+    btn.disabled = true;
+    fetch("/api/calculate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        state: el("state").value,
+        policyType: el("policyType").value,
+        amount: amount,
+        simultaneousIssue: el("simultaneousIssue").checked
+      })
+    }).then(function (res) {
+      return res.text().then(function (text) {
+        var data = null;
+        try { data = JSON.parse(text); } catch (_) {}
+        return { ok: res.ok, status: res.status, data: data };
+      });
+    }).then(function (r) {
+      if (r.ok && r.data) { show(r.data); return; }
+      if (r.status === 400 && r.data) {
+        fail(r.data.message || "That request was rejected. Check the state and amount.");
+        return;
+      }
+      if (r.status === 404) { fail("No filed schedule for that state and policy combination."); return; }
+      fail("The service answered " + r.status + ".");
+    }).catch(function () {
+      fail("Could not reach the API.");
+    }).then(function () {
+      btn.disabled = false;
+    });
+  });
+})();
+</script>
+</body>
+</html>
