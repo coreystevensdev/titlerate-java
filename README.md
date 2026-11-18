@@ -3,7 +3,19 @@
 ![CI](https://github.com/coreystevensdev/titlerate-java/actions/workflows/ci.yml/badge.svg)
 ![35 tests](https://img.shields.io/badge/tests-35-brightgreen)
 
-Title insurance premium calculator for PA and NJ. Spring Boot 3.3, Spring Security stateless JWT, Spring Data JPA, PostgreSQL. 35 tests (JUnit 5, MockMvc, a real embedded server for the responses an anonymous caller gets, and Testcontainers Postgres throughout). No persistent live URL: run locally with `docker compose up` or deploy via Terraform to ECS Fargate (see `infra/`).
+Title insurance premium calculator for PA and NJ. Spring Boot 3.3, Spring Security stateless JWT, Spring Data JPA, PostgreSQL. 35 tests (JUnit 5, MockMvc, a real embedded server for the responses an anonymous caller gets, and Testcontainers Postgres throughout). [Live](https://titlerate.52-22-210-61.sslip.io/actuator/health): `POST /api/calculate` quotes a premium with no token. Runs beside bondcalc on one EC2 instance, deployed by GitHub Actions OIDC via SSM. Spin up locally with `docker compose up`.
+
+## Try it
+
+```bash
+curl -X POST https://titlerate.52-22-210-61.sslip.io/api/calculate \
+  -H 'Content-Type: application/json' \
+  -d '{"state":"PA","policyType":"OWNER","amount":350000,"simultaneousIssue":false}'
+```
+
+Returns `netPremium` 1100.00 with the tier breakdown that produced it: the first
+$100,000 at $3.50 per thousand, the remaining $250,000 at $3.00. `ratePerThousandApplied`
+reports the tier the amount actually reached, not the top bracket in the schedule.
 
 ## Problem
 
@@ -36,7 +48,7 @@ Open-ended final tiers (null `tierEnd`) absorb all remaining amount. The `breakd
 | Passwords | BCrypt (Spring Security) | Industry-standard hashing with cost factor |
 | Tests | JUnit 5, MockMvc, Testcontainers | Integration tests run against a real Postgres container, so the migrations are exercised in the dialect production uses; `@Sql(test-rates.sql)` narrows the seed per test class |
 | DB | PostgreSQL 16 | Same engine in tests and production. H2 was dropped when Flyway took over the schema, since migrations written to satisfy both engines would never exercise either properly |
-| Infrastructure | AWS ECS Fargate, RDS PostgreSQL 17, ALB | Zero EC2 management; deployment circuit breaker rolls back on health-check failure |
+| Infrastructure | AWS EC2, PostgreSQL 18 in a container, Caddy | One t3.micro already ran bondcalc, so this shares it: the JVM is capped at 448m and settles near 236m, which leaves the Go service untouched. Caddy terminates TLS per hostname, no ALB and no ACM |
 | IaC | Terraform 1.9, GitHub Actions OIDC | Reproducible infra; CI deploys via short-lived IAM role, no stored AWS credentials |
 
 ## Getting Started
