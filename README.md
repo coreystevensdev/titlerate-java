@@ -3,12 +3,12 @@
 ![CI](https://github.com/coreystevensdev/titlerate-java/actions/workflows/ci.yml/badge.svg)
 ![38 tests](https://img.shields.io/badge/tests-38-brightgreen)
 
-Title insurance premium calculator for PA and NJ. Spring Boot 3.3, Spring Security stateless JWT, Spring Data JPA, PostgreSQL. 38 tests (JUnit 5, MockMvc, a real embedded server for the responses an anonymous caller gets, and Testcontainers Postgres throughout). [Try it](https://titlerate.52-22-210-61.sslip.io/): quote a premium in the browser, or `POST /api/calculate` with no token. Runs beside bondcalc on one EC2 instance, deployed by GitHub Actions OIDC via SSM. Spin up locally with `docker compose up`.
+Title insurance premium calculator for PA and NJ. Spring Boot 3.3, Spring Security stateless JWT, Spring Data JPA, PostgreSQL. 38 tests (JUnit 5, MockMvc, a real embedded server for the responses an anonymous caller gets, and Testcontainers Postgres throughout). [Try it](https://titlerate.coreystevens.dev/): quote a premium in the browser, or `POST /api/calculate` with no token. Runs beside bondcalc on one EC2 instance, deployed by GitHub Actions OIDC via SSM. Spin up locally with `docker compose up`.
 
 ## Try it
 
 ```bash
-curl -X POST https://titlerate.52-22-210-61.sslip.io/api/calculate \
+curl -X POST https://titlerate.coreystevens.dev/api/calculate \
   -H 'Content-Type: application/json' \
   -d '{"state":"PA","policyType":"OWNER","amount":350000,"simultaneousIssue":false}'
 ```
