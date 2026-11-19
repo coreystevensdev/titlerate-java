@@ -175,8 +175,8 @@ jobs:
           # Deliberately not echoed. SSM returns stdout to the workflow log,
           # and a Spring startup failure prints the datasource URL with it.
           echo "never reported UP within 120s. Logs stayed on the instance:"
-          echo "  aws ssm send-command --instance-ids \$INSTANCE_ID --document-name AWS-RunShellScript \\"
-          echo "    --parameters 'commands=[\"docker logs --tail 80 titlerate\"]'"
+          echo 'To read them:'
+          echo "  aws ssm send-command --instance-ids $INSTANCE_ID --document-name AWS-RunShellScript --parameters 'commands=[\"docker logs --tail 80 titlerate\"]'"
           exit 1
           SCRIPT
 
