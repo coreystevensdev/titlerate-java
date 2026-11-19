@@ -36,6 +36,10 @@ public class SecurityConfig {
                 // MockMvc resolves handler exceptions without dispatching to /error.
                 //
                 // /api/rates was listed here with no controller behind it.
+                // "/" is the demo page, served from static/. Listed explicitly rather
+                // than opening a prefix: anyRequest().authenticated() covers the root,
+                // so without this the page answers 401 to the visitor it exists for.
+                .requestMatchers("/", "/index.html").permitAll()
                 .requestMatchers("/error", "/actuator/health", "/api/auth/register", "/api/auth/login", "/api/calculate").permitAll()
                 .requestMatchers("/api/auth/me").hasRole("USER")
                 .anyRequest().authenticated()

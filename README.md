@@ -1,9 +1,9 @@
 # TitleRate (Java)
 
 ![CI](https://github.com/coreystevensdev/titlerate-java/actions/workflows/ci.yml/badge.svg)
-![35 tests](https://img.shields.io/badge/tests-35-brightgreen)
+![38 tests](https://img.shields.io/badge/tests-38-brightgreen)
 
-Title insurance premium calculator for PA and NJ. Spring Boot 3.3, Spring Security stateless JWT, Spring Data JPA, PostgreSQL. 35 tests (JUnit 5, MockMvc, a real embedded server for the responses an anonymous caller gets, and Testcontainers Postgres throughout). [Live](https://titlerate.52-22-210-61.sslip.io/actuator/health): `POST /api/calculate` quotes a premium with no token. Runs beside bondcalc on one EC2 instance, deployed by GitHub Actions OIDC via SSM. Spin up locally with `docker compose up`.
+Title insurance premium calculator for PA and NJ. Spring Boot 3.3, Spring Security stateless JWT, Spring Data JPA, PostgreSQL. 38 tests (JUnit 5, MockMvc, a real embedded server for the responses an anonymous caller gets, and Testcontainers Postgres throughout). [Try it](https://titlerate.52-22-210-61.sslip.io/): quote a premium in the browser, or `POST /api/calculate` with no token. Runs beside bondcalc on one EC2 instance, deployed by GitHub Actions OIDC via SSM. Spin up locally with `docker compose up`.
 
 ## Try it
 
