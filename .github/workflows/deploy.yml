@@ -139,6 +139,12 @@ jobs:
             | docker login --username AWS --password-stdin "$REGISTRY"
           docker pull "$IMAGE"
 
+          # Exported rather than passed as -e NAME=value: docker puts argv in the
+          # process table, so the value form shows the password and the signing
+          # key to anything that can run ps on this box. The three literals
+          # below stay inline; they are not secrets.
+          export DATABASE_URL DB_USER DB_PASSWORD JWT_SECRET
+
           docker stop titlerate 2>/dev/null || true
           docker rm titlerate 2>/dev/null || true
 
@@ -156,11 +162,11 @@ jobs:
             -p 127.0.0.1:8081:8080 \
             --memory=448m \
             --memory-swap=1g \
-            -e "DATABASE_URL=$DATABASE_URL" \
+            -e DATABASE_URL \
             -e "DB_DRIVER=org.postgresql.Driver" \
-            -e "DB_USER=$DB_USER" \
-            -e "DB_PASSWORD=$DB_PASSWORD" \
-            -e "JWT_SECRET=$JWT_SECRET" \
+            -e DB_USER \
+            -e DB_PASSWORD \
+            -e JWT_SECRET \
             -e "JWT_EXPIRATION_HOURS=24" \
             -e "JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=50 -XX:+UseSerialGC -XX:MaxMetaspaceSize=128m" \
             "$IMAGE"
