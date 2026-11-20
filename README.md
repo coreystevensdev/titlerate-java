@@ -3,7 +3,7 @@
 ![CI](https://github.com/coreystevensdev/titlerate-java/actions/workflows/ci.yml/badge.svg)
 ![38 tests](https://img.shields.io/badge/tests-38-brightgreen)
 
-Title insurance premium calculator for PA and NJ. Spring Boot 3.3, Spring Security stateless JWT, Spring Data JPA, PostgreSQL. 38 tests (JUnit 5, MockMvc, a real embedded server for the responses an anonymous caller gets, and Testcontainers Postgres throughout). [Try it](https://titlerate.coreystevens.dev/): quote a premium in the browser, or `POST /api/calculate` with no token. Runs beside bondcalc on one EC2 instance, deployed by GitHub Actions OIDC via SSM. Spin up locally with `docker compose up`.
+Title insurance premium calculator for PA and NJ. Spring Boot 3.3, Spring Security stateless JWT, Spring Data JPA, PostgreSQL. 38 tests (JUnit 5, MockMvc, a real embedded server for the responses an anonymous caller gets, and Testcontainers Postgres throughout). [Try it](https://titlerate.coreystevens.dev/): quote a premium in the browser, or `POST /api/calculate` with no token. Shares one EC2 instance with five other demos, deployed by GitHub Actions OIDC via SSM. Spin up locally with `docker compose up`.
 
 ## Try it
 
@@ -47,8 +47,8 @@ Open-ended final tiers (null `tierEnd`) absorb all remaining amount. The `breakd
 | ORM | Spring Data JPA + Hibernate | JPQL tier query. Flyway owns the schema; Hibernate runs `ddl-auto=validate` and refuses to boot if the entities drift from it |
 | Passwords | BCrypt (Spring Security) | Industry-standard hashing with cost factor |
 | Tests | JUnit 5, MockMvc, Testcontainers | Integration tests run against a real Postgres container, so the migrations are exercised in the dialect production uses; `@Sql(test-rates.sql)` narrows the seed per test class |
-| DB | PostgreSQL 16 | Same engine in tests and production. H2 was dropped when Flyway took over the schema, since migrations written to satisfy both engines would never exercise either properly |
-| Infrastructure | AWS EC2, PostgreSQL 18 in a container, Caddy | One t3.micro already ran bondcalc, so this shares it: the JVM is capped at 448m and settles near 236m, which leaves the Go service untouched. Caddy terminates TLS per hostname, no ALB and no ACM |
+| DB | PostgreSQL, 16 in tests and 18 in production | H2 was dropped when Flyway took over the schema, since migrations written to satisfy both engines would never exercise either properly. Testcontainers and CI pin `postgres:16-alpine` while the deployed container is `postgres:18-alpine`, reporting 18.7, so the migrations are exercised in the right dialect but two majors behind the one serving traffic |
+| Infrastructure | AWS EC2 t3.small, PostgreSQL 18 in a container, Caddy | Six demos share the box, nine containers in total, so the JVM is capped at 448m to leave room for its neighbours; it rested at 257m when last measured on 2026-11-20. Caddy terminates TLS per hostname, no ALB and no ACM |
 | IaC | Terraform 1.9, GitHub Actions OIDC | Reproducible infra; CI deploys via short-lived IAM role, no stored AWS credentials |
 
 ## Getting Started
@@ -75,7 +75,7 @@ curl -X POST http://localhost:8080/api/auth/register \
   -d '{"email":"test@example.com","password":"password123"}'
 ```
 
-The only endpoint that actually requires the JWT is `GET /api/auth/me`, which resolves the caller's own profile from the token's role claim, never from a request parameter:
+The only endpoint that actually requires the JWT is `GET /api/auth/me`, which resolves the caller's own profile from the token's subject claim, never from a request parameter. `JwtFilter` reads the subject into the authentication principal and the controller looks the user up by it; the role claim never identifies anyone, it only becomes a granted authority so the `hasRole("USER")` gate can fire:
 
 ```bash
 curl http://localhost:8080/api/auth/me -H "Authorization: Bearer <token>"
