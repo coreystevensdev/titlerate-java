@@ -151,9 +151,9 @@ jobs:
           # 8081 on loopback: 8080 belongs to bondcalc on this box, and nothing
           # should reach this except a reverse proxy on the same host.
           #
-          # The memory ceiling is what keeps a JVM from starving the Go service
-          # next to it on a 916MB instance. MaxRAMPercentage is read from the
-          # cgroup limit, not the host, so 50% of 448m is a ~224m heap.
+          # The memory ceiling is what keeps a JVM from starving the five other
+          # services sharing this 1913MB instance. MaxRAMPercentage is read from
+          # the cgroup limit, not the host, so 50% of 448m is a ~224m heap.
           # SerialGC because G1's region metadata and concurrent threads are not
           # worth their footprint at this heap size.
           docker run -d \
