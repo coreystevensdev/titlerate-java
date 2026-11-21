@@ -11,7 +11,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.http.MediaType;
-import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -26,13 +25,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @Sql(scripts = "/test-rates.sql")
+// No @WithMockUser anywhere in here on purpose. SecurityConfig lists
+// /api/calculate under permitAll, so authenticating these tests asserted a
+// contract the endpoint does not have and would have hidden the endpoint
+// being moved behind authentication. SecurityConfig's own comment names this
+// masking as something the existing tests fell into.
 class PremiumControllerIntegrationTest {
 
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper mapper;
 
     @Test
-    @WithMockUser
     void calculate_paOwner50k_returns175() throws Exception {
         var req = new PremiumRequest("PA", PolicyType.OWNER, new BigDecimal("50000"), false);
 
@@ -46,7 +49,6 @@ class PremiumControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser
     void calculate_paLenderSimultaneous_appliesDiscount() throws Exception {
         // $80k is clearly in tier 1 (0-100k exclusive): rate=2.75, 30% simultaneous discount
         // base = 80 * 2.75 = 220.00, discount = 220 * 0.30 = 66.00, net = 154.00
@@ -61,7 +63,6 @@ class PremiumControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser
     void calculate_invalidState_returns400() throws Exception {
         var body = """
             {"state":"XX","policyType":"OWNER","amount":100000,"simultaneousIssue":false}
@@ -74,7 +75,6 @@ class PremiumControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser
     void calculate_unconfiguredStatePolicy_returns404NotRawServerError() throws Exception {
         // NJ passes the @Pattern(state) check, but test-rates.sql only seeds PA tiers.
         var req = new PremiumRequest("NJ", PolicyType.OWNER, new BigDecimal("50000"), false);
