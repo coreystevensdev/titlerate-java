@@ -20,8 +20,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Runs against a real embedded server rather than MockMvc, and with no mock user.
  *
- * Both details matter. Every other test here carries @WithMockUser, which makes the
- * servlet error dispatch authenticated, and MockMvc resolves handler exceptions
+ * Both details matter. A @WithMockUser makes the servlet error dispatch
+ * authenticated, and MockMvc resolves handler exceptions
  * in-process without dispatching to /error at all. Between them, a permitAll
  * endpoint can answer 400 in the suite and 403 to a real anonymous client, which is
  * what it was doing.
