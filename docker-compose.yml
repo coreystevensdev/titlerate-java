@@ -21,7 +21,6 @@ services:
       DB_PASSWORD: titlerate
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION_HOURS: 24
-      SPRING_JPA_HIBERNATE_DDL_AUTO: update
     depends_on:
       - db
 
