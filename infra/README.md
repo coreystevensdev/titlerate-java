@@ -1,4 +1,23 @@
-# AWS ECS Deployment
+# AWS ECS Deployment, a path not taken
+
+**This is not how titlerate-java is deployed.** The live service is a container
+started by `docker run` over SSM on a shared `t3.small`, bound to
+`127.0.0.1:8081` behind Caddy, with no load balancer and no Fargate. See the
+root `README.md` and `.github/workflows/deploy.yml` for the real path.
+
+What follows describes an ECS architecture that was written and then not used.
+Only two things in `terraform/` are consumed by the live deployment: the ECR
+repository and the GitHub OIDC role. Everything else, the VPC, the two subnets,
+the Application Load Balancer, RDS and the Fargate service, exists here and
+runs nowhere.
+
+Applying it is not free. On a paid account it bills a NAT gateway, an ALB, an
+RDS instance and Fargate capacity for an architecture the system does not have,
+and `main.tf` leaves the S3 backend commented out, so there is no shared state
+to stop a second apply creating a duplicate set.
+
+The description below is kept because the Terraform is real and reviewable, not
+because it is a runbook to follow.
 
 Single Fargate service running the Spring Boot JAR on port 8080, backed by RDS PostgreSQL 17 on a private subnet. All traffic enters via an Application Load Balancer.
 
@@ -34,14 +53,10 @@ terraform output
 |---|---|
 | `AWS_ROLE_ARN` | `terraform output github_actions_role_arn` |
 | `ECR_REPO` | `terraform output ecr_repo_url` |
-| `ECS_CLUSTER` | `terraform output ecs_cluster_name` |
-| `ECS_SERVICE` | `terraform output ecs_service_name` |
-| `ECS_TASK_FAMILY` | `terraform output ecs_task_family` |
-| `ALB_URL` | `http://$(terraform output -raw alb_dns_name)` |
 
 ### 4. Push to main
 
-CI runs tests, builds the JAR, builds the Docker image, pushes to ECR, and deploys to ECS automatically.
+CI runs tests, builds the JAR, builds the Docker image and pushes to ECR. It then deploys with `docker run` over SSM to the shared instance. Nothing in the committed workflows touches ECS.
 
 ## Rollback
 
