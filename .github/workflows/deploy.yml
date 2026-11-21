@@ -174,6 +174,18 @@ jobs:
           for i in $(seq 1 24); do
             if curl -fsS http://127.0.0.1:8081/actuator/health 2>/dev/null | grep -q '"status":"UP"'; then
               echo "UP after $((i * 5))s"
+
+              # Housekeeping, and only once the health endpoint reports UP: a
+              # failed deploy keeps the image it would roll back to. Six services
+              # share a 16GiB instance and every deploy left its predecessor on
+              # disk, which took it to 99% on 2026-11-20 and killed a deploy with
+              # "no space left on device".
+              #
+              # ECR holds every tag, so this costs a pull on rollback rather than a
+              # rollback. `|| true` because a deploy that worked should not go red
+              # over tidying up after itself.
+              docker image prune -a -f >/dev/null 2>&1 || true
+
               exit 0
             fi
             sleep 5
