@@ -167,6 +167,106 @@ class PremiumCalculationServiceTest {
         assertThat(topTier.ratePerThousandApplied()).isEqualByComparingTo("2.50");
     }
 
+    // An amount landing exactly on a tier boundary stops there. Spilling a zero-amount
+    // row into the next tier would also move the reported rate to the next bracket.
+    @Test
+    void amountExactlyOnTierBoundary_staysInThatTier() {
+        when(rateRepo.findByStateAndPolicyTypeOrderByTierStart(eq("PA"), eq(PolicyType.OWNER)))
+            .thenReturn(List.of(
+                tier("PA", PolicyType.OWNER,
+                    BigDecimal.ZERO, new BigDecimal("100000"),
+                    new BigDecimal("4.00"), BigDecimal.ZERO),
+                tier("PA", PolicyType.OWNER,
+                    new BigDecimal("100000"), null,
+                    new BigDecimal("2.00"), BigDecimal.ZERO)));
+
+        PremiumResponse resp = service.calculate(
+            new PremiumRequest("PA", PolicyType.OWNER, new BigDecimal("100000"), false));
+
+        assertThat(resp.breakdown()).hasSize(1);
+        assertThat(resp.basePremium()).isEqualByComparingTo("400.00");
+        assertThat(resp.ratePerThousandApplied()).isEqualByComparingTo("4.00");
+    }
+
+    // Each tier rounds to cents before the tiers are summed. Rounding once at the end
+    // instead gives a different total, so the choice is worth pinning.
+    @Test
+    void roundsEachTierBeforeSumming() {
+        // tier 1: 1,250 / 1000 * 3.33 = 4.1625 -> 4.16
+        // tier 2:   500 / 1000 * 3.33 = 1.665  -> 1.67
+        // per-tier total 5.83; rounding the unrounded sum (5.8275) would give 5.83 too,
+        // so the assertion that separates them is the per-tier figure.
+        when(rateRepo.findByStateAndPolicyTypeOrderByTierStart(eq("PA"), eq(PolicyType.OWNER)))
+            .thenReturn(List.of(
+                tier("PA", PolicyType.OWNER,
+                    BigDecimal.ZERO, new BigDecimal("1250"),
+                    new BigDecimal("3.33"), BigDecimal.ZERO),
+                tier("PA", PolicyType.OWNER,
+                    new BigDecimal("1250"), null,
+                    new BigDecimal("3.33"), BigDecimal.ZERO)));
+
+        PremiumResponse resp = service.calculate(
+            new PremiumRequest("PA", PolicyType.OWNER, new BigDecimal("1750"), false));
+
+        assertThat(resp.breakdown().get(0).premium()).isEqualByComparingTo("4.16");
+        assertThat(resp.breakdown().get(1).premium()).isEqualByComparingTo("1.67");
+        assertThat(resp.basePremium()).isEqualByComparingTo("5.83");
+    }
+
+    // simultaneousIssue is true but the schedule carries no discount, so the guard on
+    // discountPct is what keeps this at zero rather than the flag.
+    @Test
+    void simultaneousIssueWithZeroDiscountPct_chargesFullBase() {
+        when(rateRepo.findByStateAndPolicyTypeOrderByTierStart(eq("NJ"), eq(PolicyType.OWNER)))
+            .thenReturn(List.of(
+                tier("NJ", PolicyType.OWNER,
+                    BigDecimal.ZERO, null,
+                    new BigDecimal("3.00"), BigDecimal.ZERO)));
+
+        PremiumResponse resp = service.calculate(
+            new PremiumRequest("NJ", PolicyType.OWNER, new BigDecimal("250000"), true));
+
+        assertThat(resp.simultaneousDiscount()).isEqualByComparingTo("0.00");
+        assertThat(resp.netPremium()).isEqualByComparingTo("750.00");
+    }
+
+    // The discount rounds half up on its own, so a half-cent discount rounds against
+    // the buyer rather than being truncated.
+    @Test
+    void discountRoundsHalfUp() {
+        // base 333.00 * 0.125 = 41.625 -> 41.63, net 291.37
+        when(rateRepo.findByStateAndPolicyTypeOrderByTierStart(eq("PA"), eq(PolicyType.LENDER)))
+            .thenReturn(List.of(
+                tier("PA", PolicyType.LENDER,
+                    BigDecimal.ZERO, null,
+                    new BigDecimal("3.33"), new BigDecimal("0.125"))));
+
+        PremiumResponse resp = service.calculate(
+            new PremiumRequest("PA", PolicyType.LENDER, new BigDecimal("100000"), true));
+
+        assertThat(resp.basePremium()).isEqualByComparingTo("333.00");
+        assertThat(resp.simultaneousDiscount()).isEqualByComparingTo("41.63");
+        assertThat(resp.netPremium()).isEqualByComparingTo("291.37");
+    }
+
+    // A policy small enough that its premium rounds below a cent quotes zero rather
+    // than failing. Worth knowing before someone treats a 0.00 quote as an error.
+    @Test
+    void amountTooSmallToRoundToACent_quotesZero() {
+        when(rateRepo.findByStateAndPolicyTypeOrderByTierStart(eq("PA"), eq(PolicyType.OWNER)))
+            .thenReturn(List.of(
+                tier("PA", PolicyType.OWNER,
+                    BigDecimal.ZERO, null,
+                    new BigDecimal("4.00"), BigDecimal.ZERO)));
+
+        PremiumResponse resp = service.calculate(
+            new PremiumRequest("PA", PolicyType.OWNER, new BigDecimal("1"), false));
+
+        assertThat(resp.basePremium()).isEqualByComparingTo("0.00");
+        assertThat(resp.breakdown()).hasSize(1);
+        assertThat(resp.breakdown().get(0).amountInTier()).isEqualByComparingTo("1");
+    }
+
     @Test
     void throwsWhenNoRateScheduleFound() {
         when(rateRepo.findByStateAndPolicyTypeOrderByTierStart(any(), any()))

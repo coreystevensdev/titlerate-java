@@ -19,7 +19,7 @@
 		     400 from Docker 29's /info endpoint, so no container can start. 1.21.4
 		     ships docker-java 3.4.x, which negotiates with it. -->
 		<testcontainers.version>1.21.4</testcontainers.version>
-		<java.version>19</java.version>
+		<java.version>21</java.version>
 		<jjwt.version>0.12.6</jjwt.version>
 	</properties>
 
@@ -68,7 +68,7 @@
 			<scope>runtime</scope>
 		</dependency>
 
-		<!-- H2 for local dev and tests -->
+		<!-- Flyway owns the schema; Hibernate only validates against it -->
 		<dependency>
 			<groupId>org.flywaydb</groupId>
 			<artifactId>flyway-core</artifactId>
