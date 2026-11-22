@@ -3,7 +3,7 @@
 ![CI](https://github.com/coreystevensdev/titlerate-java/actions/workflows/ci.yml/badge.svg)
 ![44 tests](https://img.shields.io/badge/tests-44-brightgreen)
 
-Title insurance premium calculator for PA and NJ. Spring Boot 3.3, Spring Security stateless JWT, Spring Data JPA, PostgreSQL. 38 tests (JUnit 5, MockMvc, a real embedded server for the responses an anonymous caller gets, and Testcontainers Postgres throughout). [Try it](https://titlerate.coreystevens.dev/): quote a premium in the browser, or `POST /api/calculate` with no token. Shares one EC2 instance with five other demos, deployed by GitHub Actions OIDC via SSM. Spin up locally with `docker compose up`.
+Title insurance premium calculator for PA and NJ. Spring Boot 3.3, Spring Security stateless JWT, Spring Data JPA, PostgreSQL. 44 tests (JUnit 5, MockMvc, a real embedded server for the responses an anonymous caller gets, and Testcontainers Postgres throughout). [Try it](https://titlerate.coreystevens.dev/): quote a premium in the browser, or `POST /api/calculate` with no token. Shares one EC2 instance with five other demos, deployed by GitHub Actions OIDC via SSM. Spin up locally with `docker compose up`.
 
 ## Try it
 
@@ -24,6 +24,23 @@ Title insurance premiums follow state-filed tiered rate schedules with different
 ## Solution
 
 A REST API that walks the full tier list for a given state and policy type, accumulating premium across rate brackets. Each tier covers a property value band; only the amount within that band is rated at the tier's `ratePerThousand`. The final `basePremium` is the sum across all tiers (the same math as tax bracket accumulation). Simultaneous issue discount applies to the accumulated base.
+
+## Features
+
+![TitleRate quoting a $350,000 Pennsylvania owner policy: $1,100.00 net premium, with the two rate bands that produced it, $350 on the first $100,000 and $750 on the remaining $250,000](docs/demo.png)
+
+A premium accrues across brackets the way income tax does, so the figure on its own does not explain itself and the page shows the bands underneath it. $350 of that quote is the first $100,000 at $3.50 per thousand, and the other $750 is the remaining $250,000 at $3.00. "Reached the $3.00 per thousand band" is `ratePerThousandApplied`, which reports the tier the amount actually reached and not the last tier in the schedule.
+
+| Method | Path | Auth | What it does |
+| --- | --- | --- | --- |
+| `POST` | `/api/calculate` | none | Quotes a premium from the state's filed schedule. This is what the page calls. |
+| `POST` | `/api/auth/register` | none | Creates an account and returns a JWT. |
+| `POST` | `/api/auth/login` | none | Returns a JWT for an existing account. |
+| `GET` | `/api/auth/me` | `ROLE_USER` | The caller's own profile, resolved from the token's subject claim. |
+| `GET` | `/actuator/health` | none | Liveness. What the deploy waits on before it considers the container up. |
+| `GET` | `/` | none | The page above, served from `static/index.html`. |
+
+Every public path is pinned one at a time in `SecurityConfig` rather than by opening a prefix, and `anyRequest().authenticated()` catches whatever is not on that list.
 
 ## Architecture
 
