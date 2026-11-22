@@ -1,7 +1,7 @@
 # TitleRate (Java)
 
 ![CI](https://github.com/coreystevensdev/titlerate-java/actions/workflows/ci.yml/badge.svg)
-![38 tests](https://img.shields.io/badge/tests-38-brightgreen)
+![44 tests](https://img.shields.io/badge/tests-44-brightgreen)
 
 Title insurance premium calculator for PA and NJ. Spring Boot 3.3, Spring Security stateless JWT, Spring Data JPA, PostgreSQL. 38 tests (JUnit 5, MockMvc, a real embedded server for the responses an anonymous caller gets, and Testcontainers Postgres throughout). [Try it](https://titlerate.coreystevens.dev/): quote a premium in the browser, or `POST /api/calculate` with no token. Shares one EC2 instance with five other demos, deployed by GitHub Actions OIDC via SSM. Spin up locally with `docker compose up`.
 
@@ -42,7 +42,7 @@ Open-ended final tiers (null `tierEnd`) absorb all remaining amount. The `breakd
 
 | Layer | Technology | Why |
 |---|---|---|
-| Runtime | Spring Boot 3.3, Java 19 | Familiar enterprise Java stack; JPA + Hibernate for schema management |
+| Runtime | Spring Boot 3.3, Java 21 | Familiar enterprise Java stack on the current LTS; CI, the Dockerfile and the compile target all pin 21 |
 | Auth | Spring Security stateless + JJWT 0.12.6 | `OncePerRequestFilter` validates Bearer tokens; no session state |
 | ORM | Spring Data JPA + Hibernate | JPQL tier query. Flyway owns the schema; Hibernate runs `ddl-auto=validate` and refuses to boot if the entities drift from it |
 | Passwords | BCrypt (Spring Security) | Industry-standard hashing with cost factor |

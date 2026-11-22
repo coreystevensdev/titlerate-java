@@ -25,6 +25,23 @@ jobs:
       - name: Run tests
         run: ./mvnw verify -q
 
+      # The badge was 38 against a suite of 39 before anyone noticed, because
+      # nothing read it back. Surefire's own XML is the source of truth.
+      - name: README badge matches the suite
+        run: |
+          total=$(python3 - <<'EOF'
+          import glob, xml.etree.ElementTree as ET
+          print(sum(int(ET.parse(f).getroot().get("tests", 0))
+                    - int(ET.parse(f).getroot().get("skipped", 0))
+                    for f in glob.glob("target/surefire-reports/TEST-*.xml")))
+          EOF
+          )
+          echo "surefire reports $total tests"
+          grep -q "badge/tests-$total-brightgreen" README.md \
+            || { echo "README badge does not say $total"; exit 1; }
+          grep -q "!\[$total tests\]" README.md \
+            || { echo "README badge alt text does not say $total"; exit 1; }
+
       - name: Upload test report
         if: always()
         uses: actions/upload-artifact@v4
